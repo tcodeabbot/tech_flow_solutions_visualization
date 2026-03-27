@@ -1,0 +1,646 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# ─── Page Config ───────────────────────────────────────────────────────────────
+st.set_page_config(
+    page_title="TechFlow Solutions — Dashboard",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+if "theme" not in st.session_state:
+    st.session_state.theme = "Light"
+
+is_dark = st.session_state.theme == "Dark"
+
+# ─── Branding Colours ──────────────────────────────────────────────────────────
+GOLD = "#BF994A"
+
+if is_dark:
+    NAVY = "#e9eaec"
+    DARK_NAVY = "#1a2233"
+    WHITE = "#FFFFFF"
+    LIGHT_BG = "#0f1523"
+    CARD_BG = "#1a2233"
+    GRID_COLOR = "#2a3449"
+    TEXT_COLOR = "#e9eaec"
+    POS_COLOR = "#4CAF50"
+    NEG_COLOR = "#EF5350"
+    APP_GRADIENT = f"linear-gradient(135deg, {LIGHT_BG} 0%, #131926 100%)"
+else:
+    NAVY = "#334366"
+    DARK_NAVY = "#232d44"
+    WHITE = "#FFFFFF"
+    LIGHT_BG = "#F7F9FC"
+    CARD_BG = "#FFFFFF"
+    GRID_COLOR = "#eaedf3"
+    TEXT_COLOR = NAVY
+    POS_COLOR = "#2E7D32"
+    NEG_COLOR = "#C62828"
+    APP_GRADIENT = f"linear-gradient(135deg, {LIGHT_BG} 0%, #eef1f8 100%)"
+
+PRODUCT_COLORS = {
+    "Software": "#8ba3d4" if is_dark else "#334366",
+    "Cloud Services": "#2ca02c",
+    "Security": "#d62728",
+    "Services": "#ff7f0e",
+}
+
+REGION_COLORS = {
+    "Northeast": "#636EFA",
+    "Southeast": "#EF553B",
+    "Midwest": "#00CC96",
+    "West": "#AB63FA",
+}
+
+# ─── Custom CSS ────────────────────────────────────────────────────────────────
+st.markdown(
+    f"""
+    <style>
+    /* Global background */
+    .stApp {{
+        background: {APP_GRADIENT};
+    }}
+
+    /* Sidebar styling */
+    section[data-testid="stSidebar"] {{
+        background: {DARK_NAVY};
+    }}
+    section[data-testid="stSidebar"] * {{
+        color: {WHITE} !important;
+    }}
+    section[data-testid="stSidebar"] .stButton button {{
+        background-color: {GOLD} !important;
+        border: none !important;
+        border-radius: 8px !important;
+    }}
+    section[data-testid="stSidebar"] .stButton button * {{
+        color: {DARK_NAVY} !important;
+        fill: {DARK_NAVY} !important;
+        font-weight: 700 !important;
+    }}
+    section[data-testid="stSidebar"] .stButton button:hover {{
+        background-color: #d4af58 !important;
+    }}
+    section[data-testid="stSidebar"] .stRadio label {{
+        color: {WHITE} !important;
+    }}
+
+    /* KPI Cards */
+    .kpi-card {{
+        background: {CARD_BG};
+        border-radius: 14px;
+        padding: 22px 18px;
+        text-align: center;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+        border-left: 4px solid {GOLD};
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }}
+    .kpi-card:hover {{
+        transform: translateY(-3px);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.14);
+    }}
+    .kpi-value {{
+        font-size: 2rem;
+        font-weight: 700;
+        color: {TEXT_COLOR};
+        margin: 4px 0;
+    }}
+    .kpi-label {{
+        font-size: 0.85rem;
+        color: #8e99b0;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }}
+    .kpi-delta {{
+        font-size: 0.8rem;
+        color: {POS_COLOR};
+        margin-top: 2px;
+    }}
+    .kpi-delta.negative {{
+        color: {NEG_COLOR};
+    }}
+
+    /* Section headers */
+    .section-header {{
+        font-size: 1.15rem;
+        font-weight: 600;
+        color: {TEXT_COLOR};
+        margin: 14px 0 6px 0;
+        padding-bottom: 4px;
+        border-bottom: 2px solid {GOLD};
+        display: inline-block;
+    }}
+
+    /* Dashboard title */
+    .dashboard-title {{
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: {TEXT_COLOR};
+        margin-bottom: 4px;
+    }}
+    .dashboard-subtitle {{
+        font-size: 1rem;
+        color: #8e99b0;
+        margin-bottom: 24px;
+    }}
+
+    /* Header styling and collapse icon visibility */
+    header[data-testid="stHeader"] {{
+        background: transparent;
+    }}
+    header[data-testid="stHeader"] button, 
+    header[data-testid="stHeader"] button * {{
+        fill: {TEXT_COLOR} !important;
+        stroke: {TEXT_COLOR} !important;
+        color: {TEXT_COLOR} !important;
+    }}
+    [data-testid="collapsedControl"] {{
+        color: {TEXT_COLOR} !important;
+    }}
+    [data-testid="collapsedControl"] * {{
+        fill: {TEXT_COLOR} !important;
+        stroke: {TEXT_COLOR} !important;
+        color: {TEXT_COLOR} !important;
+    }}
+
+    /* Constrain max width for large screens */
+    .block-container {{
+        max-width: 1550px;
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
+    }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+# ─── Info Dialog ───────────────────────────────────────────────────────────────
+@st.dialog("📖 Dashboard Instructions")
+def show_instructions():
+    st.markdown(f"""
+    <div style="color: {TEXT_COLOR};">
+    <h3 style="color: {TEXT_COLOR}; margin-top: 0;">Welcome to TechFlow Solutions</h3>
+    <p><b>How to Navigate:</b></p>
+    <ul>
+        <li><b>Dashboard Selection</b>: Use the radio buttons in the left sidebar to toggle between the <i>Executive Dashboard</i> and the <i>Operations Dashboard</i>.</li>
+        <li><b>Filtering Data</b>: Use the multi-select dropdowns to filter metrics and charts by specific Regions or Product Categories dynamically.</li>
+        <li><b>Theming</b>: Switch between Light and Dark mode using the sidebar toggle for your preferred viewing experience.</li>
+        <li><b>Interactivity</b>: Hover over any chart to view exact data points, or double-click to reset zooming.</li>
+    </ul>
+    <br>
+    <hr style="border-top: 1px solid {GOLD};">
+    <p style="font-size: 0.9em; text-align: center; margin-bottom: 0;">
+        <b>Authors:</b> Abbot Tubeine, Harrison Herschberger
+    </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+# ─── Data Loading ──────────────────────────────────────────────────────────────
+@st.cache_data
+def load_data():
+    df = pd.read_csv("dashboard_data.csv")
+    df["date"] = pd.to_datetime(df["date"])
+    df["month"] = df["date"].dt.to_period("M").dt.to_timestamp()
+    df["date_label"] = df["date"].dt.strftime("%Y-%m-%d")
+    return df
+
+
+df = load_data()
+
+# ─── Sidebar ───────────────────────────────────────────────────────────────────
+with st.sidebar:
+    st.markdown(
+        f"""
+        <div style='text-align:center; padding: 18px 0 10px 0;'>
+            <svg width="60" height="60" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom: 6px;">
+                <path d="M4 18L12 4L20 18H4Z" fill="{GOLD}" fill-opacity="0.9"/>
+                <path d="M16 26L26 8L30 14.5L19 32.5L16 26Z" fill="{TEXT_COLOR}" fill-opacity="0.85"/>
+            </svg>
+            <br>
+            <span style='font-size:1.4rem; font-weight:800; color:{GOLD}; letter-spacing: 0.5px;'>TECHFLOW</span><br>
+            <span style='font-size:0.75rem; color:#8e99b0; text-transform:uppercase; letter-spacing: 1.5px; font-weight: 600;'>Solutions</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown("---")
+    
+    if st.button("Dashboard Guide", icon=":material/info:", use_container_width=True):
+        show_instructions()
+    
+    def toggle_theme():
+        st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
+        
+    st.toggle("Dark Theme", value=is_dark, on_change=toggle_theme)
+    st.markdown("---")
+    
+    dashboard = st.radio(
+        "Select Dashboard",
+        ["Executive Analytics", "Operations Engine"],
+        index=0,
+    )
+    st.markdown("---")
+
+    # Filters
+    st.markdown(
+        f"<p style='font-weight:600; color:{GOLD}; margin-bottom:4px;'>Filters</p>",
+        unsafe_allow_html=True,
+    )
+    regions = st.multiselect(
+        "Region", df["region"].unique().tolist(), default=df["region"].unique().tolist()
+    )
+    products = st.multiselect(
+        "Product Category",
+        df["product_category"].unique().tolist(),
+        default=df["product_category"].unique().tolist(),
+    )
+
+# Apply filters
+mask = df["region"].isin(regions) & df["product_category"].isin(products)
+fdf = df[mask].copy()
+
+# ─── Helper: Plotly Layout Defaults ───────────────────────────────────────────
+LAYOUT_DEFAULTS = dict(
+    paper_bgcolor="rgba(0,0,0,0)",
+    plot_bgcolor="rgba(0,0,0,0)",
+    font=dict(family="Inter, sans-serif", color=TEXT_COLOR),
+    margin=dict(t=50, b=40, l=50, r=20),
+    hovermode="x unified",
+)
+
+
+def styled_fig(fig, height=420):
+    fig.update_layout(**LAYOUT_DEFAULTS, height=height)
+    fig.update_xaxes(gridcolor=GRID_COLOR, zeroline=False, showline=True, linewidth=1, linecolor=TEXT_COLOR, automargin=True)
+    fig.update_yaxes(gridcolor=GRID_COLOR, zeroline=False, showline=True, linewidth=1, linecolor=TEXT_COLOR, automargin=True)
+    return fig
+
+
+def kpi_card(label, value, delta=None, delta_negative=False):
+    delta_html = ""
+    if delta:
+        cls = "negative" if delta_negative else ""
+        delta_html = f'<div class="kpi-delta {cls}">{delta}</div>'
+    return f"""
+    <div class="kpi-card">
+        <div class="kpi-label">{label}</div>
+        <div class="kpi-value">{value}</div>
+        {delta_html}
+    </div>
+    """
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EXECUTIVE DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+if "Executive" in dashboard:
+    st.markdown(
+        '<div class="dashboard-title">Executive Dashboard</div>'
+        '<div class="dashboard-subtitle">TechFlow Solutions — Q1 2024 Performance Overview</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── KPI Calculations ──────────────────────────────────────────────────────
+    total_revenue = fdf["revenue"].sum()
+    total_profit = fdf["profit"].sum()
+    profit_margin = (total_profit / total_revenue * 100) if total_revenue else 0
+    avg_satisfaction = fdf["customer_satisfaction"].mean()
+
+    first_date_rev = fdf[fdf["date"] == fdf["date"].min()]["revenue"].sum()
+    last_date_rev = fdf[fdf["date"] == fdf["date"].max()]["revenue"].sum()
+    rev_growth = (
+        ((last_date_rev - first_date_rev) / first_date_rev * 100)
+        if first_date_rev
+        else 0
+    )
+
+    # ── KPI Cards (3 cards) ───────────────────────────────────────────────────
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.markdown(
+            kpi_card(
+                "Total Revenue",
+                f"${total_revenue/1_000_000:.2f}M",
+                f"+{rev_growth:.1f}% growth",
+            ),
+            unsafe_allow_html=True,
+        )
+    with k2:
+        st.markdown(
+            kpi_card("Gross Profit", f"${total_profit/1_000_000:.2f}M"),
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            kpi_card("Profit Margin", f"{profit_margin:.1f}%"),
+            unsafe_allow_html=True,
+        )
+
+    # ── Row 1 of Charts: Pie Revenue by Product | Revenue Trend by Product ──
+    col_1, col_2 = st.columns(2)
+    
+    with col_1:
+        st.markdown(
+            '<div class="section-header">Revenue by Product Line</div>',
+            unsafe_allow_html=True,
+        )
+        prod_rev = fdf.groupby("product_category")["revenue"].sum().reset_index()
+        fig1 = px.bar(
+            prod_rev,
+            x="product_category",
+            y="revenue",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            labels={"product_category": "Product", "revenue": "Revenue ($)"},
+        )
+        fig1.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig1.update_layout(showlegend=False)
+        st.plotly_chart(styled_fig(fig1, 340), use_container_width=True, theme=None)
+
+    with col_2:
+        st.markdown(
+            '<div class="section-header">Revenue Trend by Product Line</div>',
+            unsafe_allow_html=True,
+        )
+        trend = fdf.groupby(["month", "product_category"])["revenue"].sum().reset_index()
+        fig2 = px.line(
+            trend,
+            x="month",
+            y="revenue",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            markers=True,
+            labels={
+                "month": "Month",
+                "revenue": "Revenue ($)",
+                "product_category": "Product Line",
+            },
+        )
+        fig2.update_traces(line=dict(width=2.5), marker=dict(size=7))
+        fig2.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig2.update_layout(
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(styled_fig(fig2, 340), use_container_width=True, theme=None)
+
+    # ── Row 2 of Charts: Revenue by Region | Marketing Spend Trend by Region ──
+    col_3, col_4 = st.columns(2)
+
+    with col_3:
+        st.markdown(
+            '<div class="section-header">Revenue by Region</div>',
+            unsafe_allow_html=True,
+        )
+        reg_rev = fdf.groupby("region")["revenue"].sum().reset_index()
+        fig3 = px.bar(
+            reg_rev,
+            x="region",
+            y="revenue",
+            color="region",
+            color_discrete_map=REGION_COLORS,
+            labels={"region": "Region", "revenue": "Revenue ($)"},
+        )
+        fig3.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig3.update_layout(showlegend=False)
+        st.plotly_chart(styled_fig(fig3, 340), use_container_width=True, theme=None)
+
+    with col_4:
+        st.markdown(
+            '<div class="section-header">Marketing Spend Trend by Region</div>',
+            unsafe_allow_html=True,
+        )
+        mkt_trend = (
+            fdf.groupby(["month", "region"])["marketing_spend"].sum().reset_index()
+        )
+        fig4 = px.line(
+            mkt_trend,
+            x="month",
+            y="marketing_spend",
+            color="region",
+            color_discrete_map=REGION_COLORS,
+            markers=True,
+            labels={
+                "month": "Month",
+                "marketing_spend": "Marketing Spend ($)",
+                "region": "Region",
+            },
+        )
+        fig4.update_traces(line=dict(width=2.5), marker=dict(size=7))
+        fig4.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig4.update_layout(
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(styled_fig(fig4, 340), use_container_width=True, theme=None)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  OPERATIONS DASHBOARD
+# ═══════════════════════════════════════════════════════════════════════════════
+else:
+    st.markdown(
+        '<div class="dashboard-title">Operations Dashboard</div>'
+        '<div class="dashboard-subtitle">TechFlow Solutions — Q1 2024 Operational Insights</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Ops KPI Calculations ──────────────────────────────────────────────────
+    avg_return_rate = fdf["return_rate"].mean() * 100
+    fdf_units = fdf[fdf["units_sold"] > 0]
+    avg_profit_per_unit = (
+        (fdf_units["profit"].sum() / fdf_units["units_sold"].sum())
+        if fdf_units["units_sold"].sum()
+        else 0
+    )
+    avg_satisfaction = fdf["customer_satisfaction"].mean()
+    total_customers = fdf["customer_count"].sum()
+
+    # ── Ops KPI Cards ─────────────────────────────────────────────────────────
+    o1, o2, o3, o4 = st.columns(4)
+    with o1:
+        st.markdown(
+            kpi_card("Avg Return Rate", f"{avg_return_rate:.2f}%"),
+            unsafe_allow_html=True,
+        )
+    with o2:
+        st.markdown(
+            kpi_card("Profit / Unit", f"${avg_profit_per_unit:.2f}"),
+            unsafe_allow_html=True,
+        )
+    with o3:
+        st.markdown(
+            kpi_card("Avg Satisfaction", f"{avg_satisfaction:.2f} / 5"),
+            unsafe_allow_html=True,
+        )
+    with o4:
+        st.markdown(
+            kpi_card("Total Customers", f"{total_customers:,}"),
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("")
+
+    # ── Return Rate by Product & Region ───────────────────────────────────────
+    col_l, col_r = st.columns(2)
+
+    with col_l:
+        st.markdown(
+            '<div class="section-header">Avg Return Rate by Product</div>',
+            unsafe_allow_html=True,
+        )
+        rr_prod = (
+            fdf.groupby("product_category")["return_rate"]
+            .mean()
+            .reset_index()
+        )
+        rr_prod["return_rate_pct"] = rr_prod["return_rate"] * 100
+        fig = px.bar(
+            rr_prod,
+            x="product_category",
+            y="return_rate_pct",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            labels={
+                "product_category": "Product",
+                "return_rate_pct": "Return Rate (%)",
+            },
+        )
+        fig.update_yaxes(ticksuffix="%")
+        fig.update_layout(showlegend=False)
+        st.plotly_chart(styled_fig(fig, 380), use_container_width=True, theme=None)
+
+    with col_r:
+        st.markdown(
+            '<div class="section-header">Avg Return Rate by Region & Product</div>',
+            unsafe_allow_html=True,
+        )
+        rr_rp = (
+            fdf.groupby(["region", "product_category"])["return_rate"]
+            .mean()
+            .reset_index()
+        )
+        rr_rp["return_rate_pct"] = rr_rp["return_rate"] * 100
+        fig = px.bar(
+            rr_rp,
+            x="region",
+            y="return_rate_pct",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            barmode="group",
+            labels={
+                "region": "Region",
+                "return_rate_pct": "Return Rate (%)",
+                "product_category": "Product",
+            },
+        )
+        fig.update_yaxes(ticksuffix="%")
+        fig.update_layout(
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            )
+        )
+        st.plotly_chart(styled_fig(fig, 380), use_container_width=True, theme=None)
+
+    # ── Profit Per Unit ───────────────────────────────────────────────────────
+    st.markdown(
+        '<div class="section-header">Profit Per Unit by Product Category</div>',
+        unsafe_allow_html=True,
+    )
+    fdf_pu = fdf[fdf["units_sold"] > 0]
+    ppu = (
+        fdf_pu.groupby("product_category")
+        .apply(lambda x: x["profit"].sum() / x["units_sold"].sum())
+        .reset_index(name="profit_per_unit")
+    )
+    fig = px.bar(
+        ppu,
+        x="product_category",
+        y="profit_per_unit",
+        color="product_category",
+        color_discrete_map=PRODUCT_COLORS,
+        labels={
+            "product_category": "Product Category",
+            "profit_per_unit": "Profit / Unit ($)",
+        },
+    )
+    fig.update_yaxes(tickprefix="$", tickformat=",.2f")
+    fig.update_layout(showlegend=False)
+    st.plotly_chart(styled_fig(fig, 400), use_container_width=True, theme=None)
+
+    # ── Scatter Plots ─────────────────────────────────────────────────────────
+    col_l2, col_r2 = st.columns(2)
+
+    with col_l2:
+        st.markdown(
+            '<div class="section-header">Satisfaction vs Return Rate</div>',
+            unsafe_allow_html=True,
+        )
+        fig = px.scatter(
+            fdf,
+            x="customer_satisfaction",
+            y="return_rate",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            opacity=0.7,
+            labels={
+                "customer_satisfaction": "Customer Satisfaction (1‑5)",
+                "return_rate": "Return Rate",
+                "product_category": "Product",
+            },
+        )
+        fig.update_yaxes(tickformat=".0%")
+        fig.update_layout(
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            )
+        )
+        st.plotly_chart(styled_fig(fig, 420), use_container_width=True, theme=None)
+
+    with col_r2:
+        st.markdown(
+            '<div class="section-header">Marketing Spend vs Profit</div>',
+            unsafe_allow_html=True,
+        )
+        fig = px.scatter(
+            fdf,
+            x="marketing_spend",
+            y="profit",
+            color="product_category",
+            color_discrete_map=PRODUCT_COLORS,
+            opacity=0.65,
+            trendline="ols",
+            labels={
+                "marketing_spend": "Marketing Spend ($)",
+                "profit": "Profit ($)",
+                "product_category": "Product",
+            },
+        )
+        fig.update_xaxes(tickprefix="$", tickformat=",.0f")
+        fig.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig.update_layout(
+            legend=dict(
+                orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
+            )
+        )
+        st.plotly_chart(styled_fig(fig, 420), use_container_width=True, theme=None)
+
+
+# ─── Footer ───────────────────────────────────────────────────────────────────
+st.markdown("---")
+st.markdown(
+    f"""
+    <div style='text-align:center; padding:15px 0 10px 0; color:#8e99b0; font-size:0.85rem; line-height: 1.6;'>
+        <b>TechFlow Solutions</b> &nbsp;|&nbsp; Data Visualization Lab<br>
+        Submitted to Dr. Benjamin Harris<br>
+        <span style='color:{TEXT_COLOR}; font-weight: 600;'>Authors: Abbot Tubeine & Harrison Herschberger</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
