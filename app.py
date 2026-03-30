@@ -189,6 +189,28 @@ st.markdown(
         padding-top: 1.5rem;
         padding-bottom: 1.5rem;
     }}
+
+    /* @st.dialog modal: Streamlit keeps a light panel; app TEXT_COLOR is light in dark mode → fix contrast */
+    div[role="dialog"] {{
+        background: #f7f9fc !important;
+        color: #1a2233 !important;
+    }}
+    div[role="dialog"] h1,
+    div[role="dialog"] h2,
+    div[role="dialog"] h3,
+    div[role="dialog"] p,
+    div[role="dialog"] li,
+    div[role="dialog"] ul,
+    div[role="dialog"] strong,
+    div[role="dialog"] b,
+    div[role="dialog"] i,
+    div[role="dialog"] .stMarkdown,
+    div[role="dialog"] [data-testid="stMarkdownContainer"] {{
+        color: #1a2233 !important;
+    }}
+    div[role="dialog"] hr {{
+        border-color: {GOLD} !important;
+    }}
     </style>
     """,
     unsafe_allow_html=True,
@@ -198,23 +220,30 @@ st.markdown(
 # ─── Info Dialog ───────────────────────────────────────────────────────────────
 @st.dialog("📖 Dashboard Instructions")
 def show_instructions():
-    st.markdown(f"""
-    <div style="color: {TEXT_COLOR};">
-    <h3 style="color: {TEXT_COLOR}; margin-top: 0;">Welcome to TechFlow Solutions</h3>
-    <p><b>How to Navigate:</b></p>
-    <ul>
+    # Fixed light-panel colors: dialog shell stays light even when app “dark” theme uses light TEXT_COLOR elsewhere.
+    _dlg_bg = "#f0f3f8"
+    _dlg_text = "#1a2233"
+    _dlg_muted = "#4a5568"
+    st.markdown(
+        f"""
+    <div style="background:{_dlg_bg};color:{_dlg_text};padding:14px 16px;border-radius:12px;line-height:1.55;border:1px solid #dde3ed;">
+    <h3 style="color:{_dlg_text};margin-top:0;">Welcome to TechFlow Solutions</h3>
+    <p style="color:{_dlg_text};"><b>How to Navigate:</b></p>
+    <ul style="color:{_dlg_text};">
         <li><b>Dashboard Selection</b>: Use the radio buttons in the left sidebar to toggle between the <i>Executive Dashboard</i> and the <i>Operations Dashboard</i>.</li>
         <li><b>Filtering Data</b>: Use the multi-select dropdowns to filter metrics and charts by specific Regions or Product Categories dynamically.</li>
         <li><b>Theming</b>: Switch between Light and Dark mode using the sidebar toggle for your preferred viewing experience.</li>
         <li><b>Interactivity</b>: Hover over any chart to view exact data points, or double-click to reset zooming.</li>
     </ul>
     <br>
-    <hr style="border-top: 1px solid {GOLD};">
-    <p style="font-size: 0.9em; text-align: center; margin-bottom: 0;">
-        <b>Authors:</b> Abbot Tubeine, Harrison Herschberger
+    <hr style="border-top:1px solid {GOLD};margin:12px 0;">
+    <p style="font-size:0.9em;text-align:center;margin-bottom:0;color:{_dlg_muted};">
+        <b style="color:{_dlg_text};">Authors:</b> Abbot Tubeine, Harrison Herschberger
     </p>
     </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 # ─── Data Loading ──────────────────────────────────────────────────────────────
