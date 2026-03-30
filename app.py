@@ -44,19 +44,33 @@ else:
     NEG_COLOR = "#C62828"
     APP_GRADIENT = f"linear-gradient(135deg, {LIGHT_BG} 0%, #eef1f8 100%)"
 
-PRODUCT_COLORS = {
-    "Software": "#8ba3d4" if is_dark else "#334366",
-    "Cloud Services": "#2ca02c",
-    "Security": "#d62728",
-    "Services": "#ff7f0e",
-}
-
-REGION_COLORS = {
-    "Northeast": "#636EFA",
-    "Southeast": "#EF553B",
-    "Midwest": "#00CC96",
-    "West": "#AB63FA",
-}
+# Categorical colors: blue / amber / violet / cyan — distinguishable for common CVD; no red–green pairs
+if is_dark:
+    PRODUCT_COLORS = {
+        "Software": "#7EB8FF",
+        "Cloud Services": "#E8C547",
+        "Security": "#C9A0FF",
+        "Services": "#5ED4E0",
+    }
+    REGION_COLORS = {
+        "Northeast": "#7EB8FF",
+        "Southeast": "#E8C547",
+        "Midwest": "#C9A0FF",
+        "West": "#5ED4E0",
+    }
+else:
+    PRODUCT_COLORS = {
+        "Software": "#2E5AAC",
+        "Cloud Services": "#B8860B",
+        "Security": "#5C3D8C",
+        "Services": "#007C92",
+    }
+    REGION_COLORS = {
+        "Northeast": "#2E5AAC",
+        "Southeast": "#B8860B",
+        "Midwest": "#5C3D8C",
+        "West": "#007C92",
+    }
 
 # ─── Custom CSS ────────────────────────────────────────────────────────────────
 st.markdown(
@@ -284,6 +298,70 @@ def styled_fig(fig, height=420):
     return fig
 
 
+def compact_line_hover(fig, *, currency: bool = True, dollars_as_k: bool = False):
+    """Hover: 'Cloud Services, March 01, 2024, $126K' (y in thousands when dollars_as_k)."""
+    if currency and dollars_as_k:
+        yfmt = "$%{y:,.0f}K"
+    elif currency:
+        yfmt = "$%{y:,.0f}"
+    else:
+        yfmt = "%{y}"
+    for tr in fig.data:
+        if getattr(tr, "type", None) != "scatter":
+            continue
+        mode = getattr(tr, "mode", "") or ""
+        if "lines" not in mode:
+            continue
+        name = getattr(tr, "name", "") or "Series"
+        tr.hovertemplate = f"{name}, %{{x|%B %d, %Y}}, {yfmt}<extra></extra>"
+
+
+def compact_bar_hover(
+    fig,
+    *,
+    currency: bool = False,
+    currency_decimals: int = 0,
+    dollars_as_k: bool = False,
+    percent: bool = False,
+    percent_decimals: int = 2,
+    include_legend_name: bool = False,
+):
+    """Bar hover: 'Northeast, $125.5K' or 'Northeast, Software, 2.35%' — no axis= labels."""
+    if currency and dollars_as_k:
+        ypart = "$%{y:,.0f}K"
+    elif currency:
+        if currency_decimals == 0:
+            ypart = "$%{y:,.0f}"
+        else:
+            ypart = f"$%{{y:,.{currency_decimals}f}}"
+    elif percent:
+        ypart = f"%{{y:.{percent_decimals}f}}%"
+    else:
+        ypart = "%{y}"
+    for tr in fig.data:
+        if getattr(tr, "type", None) != "bar":
+            continue
+        name = getattr(tr, "name", "") or ""
+        if include_legend_name and name:
+            tr.hovertemplate = f"%{{x}}, {name}, {ypart}<extra></extra>"
+        else:
+            tr.hovertemplate = f"%{{x}}, {ypart}<extra></extra>"
+
+
+def compact_scatter_hover_spend_profit(fig):
+    """Marketing vs profit (full dollars): 'Software, Spend $1,200, Profit $4,950'."""
+    for tr in fig.data:
+        if getattr(tr, "type", None) != "scatter":
+            continue
+        mode = getattr(tr, "mode", "") or ""
+        if "markers" not in mode:
+            continue
+        name = getattr(tr, "name", "") or "Series"
+        tr.hovertemplate = (
+            f"{name}, Spend $%{{x:,.0f}}, Profit $%{{y:,.0f}}<extra></extra>"
+        )
+
+
 def kpi_card(label, value, delta=None, delta_negative=False):
     delta_html = ""
     if delta:
@@ -328,14 +406,14 @@ if "Executive" in dashboard:
         st.markdown(
             kpi_card(
                 "Total Revenue",
-                f"${total_revenue/1_000_000:.2f}M",
+                f"${total_revenue/1_000_000:,.2f}M",
                 f"+{rev_growth:.1f}% growth",
             ),
             unsafe_allow_html=True,
         )
     with k2:
         st.markdown(
-            kpi_card("Gross Profit", f"${total_profit/1_000_000:.2f}M"),
+            kpi_card("Gross Profit", f"${total_profit/1_000:,.0f}K"),
             unsafe_allow_html=True,
         )
     with k3:
@@ -353,16 +431,18 @@ if "Executive" in dashboard:
             unsafe_allow_html=True,
         )
         prod_rev = fdf.groupby("product_category")["revenue"].sum().reset_index()
+        prod_rev["revenue_k"] = prod_rev["revenue"] / 1000
         fig1 = px.bar(
             prod_rev,
             x="product_category",
-            y="revenue",
+            y="revenue_k",
             color="product_category",
             color_discrete_map=PRODUCT_COLORS,
-            labels={"product_category": "Product", "revenue": "Revenue ($)"},
+            labels={"product_category": "Product", "revenue_k": "Revenue ($K)"},
         )
-        fig1.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig1.update_yaxes(tickprefix="$", tickformat=",.0f", ticksuffix="K")
         fig1.update_layout(showlegend=False)
+        compact_bar_hover(fig1, currency=True, dollars_as_k=True)
         st.plotly_chart(styled_fig(fig1, 340), use_container_width=True, theme=None)
 
     with col_2:
@@ -371,27 +451,29 @@ if "Executive" in dashboard:
             unsafe_allow_html=True,
         )
         trend = fdf.groupby(["month", "product_category"])["revenue"].sum().reset_index()
+        trend["revenue_k"] = trend["revenue"] / 1000
         fig2 = px.line(
             trend,
             x="month",
-            y="revenue",
+            y="revenue_k",
             color="product_category",
             color_discrete_map=PRODUCT_COLORS,
             markers=True,
             labels={
                 "month": "Month",
-                "revenue": "Revenue ($)",
+                "revenue_k": "Revenue ($K)",
                 "product_category": "Product Line",
             },
         )
         fig2.update_traces(line=dict(width=2.5), marker=dict(size=7))
-        fig2.update_yaxes(tickprefix="$", tickformat=",.0f")
+        compact_line_hover(fig2, currency=True, dollars_as_k=True)
+        fig2.update_yaxes(tickprefix="$", tickformat=",.0f", ticksuffix="K")
         fig2.update_layout(
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
         st.plotly_chart(styled_fig(fig2, 340), use_container_width=True, theme=None)
 
-    # ── Row 2 of Charts: Revenue by Region | Marketing Spend Trend by Region ──
+    # ── Row 2 of Charts: Revenue by Region (bar) | Revenue Trend by Region (line) ──
     col_3, col_4 = st.columns(2)
 
     with col_3:
@@ -400,41 +482,43 @@ if "Executive" in dashboard:
             unsafe_allow_html=True,
         )
         reg_rev = fdf.groupby("region")["revenue"].sum().reset_index()
+        reg_rev["revenue_k"] = reg_rev["revenue"] / 1000
         fig3 = px.bar(
             reg_rev,
             x="region",
-            y="revenue",
+            y="revenue_k",
             color="region",
             color_discrete_map=REGION_COLORS,
-            labels={"region": "Region", "revenue": "Revenue ($)"},
+            labels={"region": "Region", "revenue_k": "Revenue ($K)"},
         )
-        fig3.update_yaxes(tickprefix="$", tickformat=",.0f")
+        fig3.update_yaxes(tickprefix="$", tickformat=",.0f", ticksuffix="K")
         fig3.update_layout(showlegend=False)
+        compact_bar_hover(fig3, currency=True, dollars_as_k=True)
         st.plotly_chart(styled_fig(fig3, 340), use_container_width=True, theme=None)
 
     with col_4:
         st.markdown(
-            '<div class="section-header">Marketing Spend Trend by Region</div>',
+            '<div class="section-header">Revenue Trend by Region</div>',
             unsafe_allow_html=True,
         )
-        mkt_trend = (
-            fdf.groupby(["month", "region"])["marketing_spend"].sum().reset_index()
-        )
+        reg_trend = fdf.groupby(["month", "region"])["revenue"].sum().reset_index()
+        reg_trend["revenue_k"] = reg_trend["revenue"] / 1000
         fig4 = px.line(
-            mkt_trend,
+            reg_trend,
             x="month",
-            y="marketing_spend",
+            y="revenue_k",
             color="region",
             color_discrete_map=REGION_COLORS,
             markers=True,
             labels={
                 "month": "Month",
-                "marketing_spend": "Marketing Spend ($)",
+                "revenue_k": "Revenue ($K)",
                 "region": "Region",
             },
         )
         fig4.update_traces(line=dict(width=2.5), marker=dict(size=7))
-        fig4.update_yaxes(tickprefix="$", tickformat=",.0f")
+        compact_line_hover(fig4, currency=True, dollars_as_k=True)
+        fig4.update_yaxes(tickprefix="$", tickformat=",.0f", ticksuffix="K")
         fig4.update_layout(
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
@@ -471,7 +555,7 @@ else:
         )
     with o2:
         st.markdown(
-            kpi_card("Profit / Unit", f"${avg_profit_per_unit:.2f}"),
+            kpi_card("Profit / Unit", f"${avg_profit_per_unit:,.0f}"),
             unsafe_allow_html=True,
         )
     with o3:
@@ -514,6 +598,7 @@ else:
         )
         fig.update_yaxes(ticksuffix="%")
         fig.update_layout(showlegend=False)
+        compact_bar_hover(fig, percent=True)
         st.plotly_chart(styled_fig(fig, 380), use_container_width=True, theme=None)
 
     with col_r:
@@ -533,7 +618,7 @@ else:
             y="return_rate_pct",
             color="product_category",
             color_discrete_map=PRODUCT_COLORS,
-            barmode="group",
+            barmode="stack",
             labels={
                 "region": "Region",
                 "return_rate_pct": "Return Rate (%)",
@@ -546,6 +631,7 @@ else:
                 orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
             )
         )
+        compact_bar_hover(fig, percent=True, include_legend_name=True)
         st.plotly_chart(styled_fig(fig, 380), use_container_width=True, theme=None)
 
     # ── Profit Per Unit ───────────────────────────────────────────────────────
@@ -570,8 +656,9 @@ else:
             "profit_per_unit": "Profit / Unit ($)",
         },
     )
-    fig.update_yaxes(tickprefix="$", tickformat=",.2f")
+    fig.update_yaxes(tickprefix="$", tickformat=",.0f")
     fig.update_layout(showlegend=False)
+    compact_bar_hover(fig, currency=True, currency_decimals=0)
     st.plotly_chart(styled_fig(fig, 400), use_container_width=True, theme=None)
 
     # ── Scatter Plots ─────────────────────────────────────────────────────────
@@ -615,15 +702,15 @@ else:
             color="product_category",
             color_discrete_map=PRODUCT_COLORS,
             opacity=0.65,
-            trendline="ols",
             labels={
-                "marketing_spend": "Marketing Spend ($)",
+                "marketing_spend": "Marketing spend ($)",
                 "profit": "Profit ($)",
                 "product_category": "Product",
             },
         )
         fig.update_xaxes(tickprefix="$", tickformat=",.0f")
         fig.update_yaxes(tickprefix="$", tickformat=",.0f")
+        compact_scatter_hover_spend_profit(fig)
         fig.update_layout(
             legend=dict(
                 orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1
